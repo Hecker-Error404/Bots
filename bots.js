@@ -1,6 +1,6 @@
 const mineflayer = require('mineflayer');
 
-const SERVER_HOST = 'ACoolServerEG.aternos.me';
+const SERVER_HOST = 'Hecker.aternos.me';
 const SERVER_PORT = 25565;
 
 function createBot(name, reconnectInterval) {
