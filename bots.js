@@ -1,4 +1,11 @@
 const mineflayer = require('mineflayer');
+const http = require('http');
+
+// 1. Silent Web Server to keep Railway happy and prevent deployment failure
+http.createServer((req, res) => {
+  res.writeHead(200);
+  res.end();
+}).listen(process.env.PORT || 3000);
 
 // Default Minecraft Java Port
 const DEFAULT_PORT = 25565;
