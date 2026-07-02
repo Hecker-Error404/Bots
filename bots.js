@@ -1,32 +1,35 @@
 const mineflayer = require('mineflayer');
 
-const SERVER_HOST = 'CoolServerEG.aternos.me';
-const SERVER_PORT = 25565;
+// Default Minecraft Java Port
+const DEFAULT_PORT = 25565;
 
-function createBot(name, reconnectInterval) {
+function createBot(name, host, reconnectInterval) {
   let bot;
   let movementInterval;
   let reconnectTimer;
   let afkInterval;
   let lookInterval;
+  let sneakInterval;
 
   function cleanup() {
     if (movementInterval) clearInterval(movementInterval);
     if (reconnectTimer) clearTimeout(reconnectTimer);
     if (afkInterval) clearInterval(afkInterval);
     if (lookInterval) clearInterval(lookInterval);
+    if (sneakInterval) clearInterval(sneakInterval);
     movementInterval = null;
     reconnectTimer = null;
     afkInterval = null;
     lookInterval = null;
+    sneakInterval = null;
   }
 
   function connect() {
     cleanup();
 
     bot = mineflayer.createBot({
-      host: SERVER_HOST,
-      port: SERVER_PORT,
+      host: host,
+      port: DEFAULT_PORT,
       username: name,
       version: '1.20.1',
       hideErrors: true,
@@ -88,20 +91,17 @@ function createBot(name, reconnectInterval) {
   }
 
   function startAntiAFK() {
-    // Swing arm silently
     afkInterval = setInterval(() => {
       try { bot.swingArm(); } catch(e) {}
     }, 60000);
 
-    // Look around silently instead of chatting
     lookInterval = setInterval(() => {
       try {
         bot.look(Math.random() * Math.PI * 2, 0, true);
       } catch(e) {}
     }, 600000);
 
-    // Sneak every 2 minutes
-    setInterval(() => {
+    sneakInterval = setInterval(() => {
       try {
         bot.setControlState('sneak', true);
         setTimeout(() => {
@@ -114,5 +114,8 @@ function createBot(name, reconnectInterval) {
   connect();
 }
 
-createBot('John', 10 * 60 * 1000);
-setTimeout(() => createBot('Egypt', 5 * 60 * 1000), 5000);
+const ONE_HOUR = 60 * 60 * 1000;
+
+// Join CoolServerEG.aternos.me
+createBot('John', 'CoolServerEG.aternos.me', ONE_HOUR);
+setTimeout(() => createBot('Egypt', 'CoolServerEG.aternos.me', ONE_HOUR), 5000);
