@@ -1,128 +1,109 @@
 const mineflayer = require('mineflayer');
-const http = require('http');
 
-// 1. Silent Web Server to keep Railway happy and prevent deployment failure
-http.createServer((req, res) => {
-  res.writeHead(200);
-  res.end();
-}).listen(process.env.PORT || 3000);
+const config = {
+    host: 'nigerfromnigeria.aternos.me', // Change to your server IP
+    port: 16304,       // Change to your server port
+    version: 1.21.10     // e.g., '1.20.1'
+};
 
-// Default Minecraft Java Port
-const DEFAULT_PORT = 25565;
+function createBot(username, dcIntervalMin, chatIntervalMinMax) {
+    let bot = null;
+    let chatTimer = null;
+    let moveTimer = null;
+    let moveTimeout = null;
+    let reconnectTimeout = null;
+    let cycleInterval = null;
 
-function createBot(name, host, reconnectInterval) {
-  let bot;
-  let movementInterval;
-  let reconnectTimer;
-  let afkInterval;
-  let lookInterval;
-  let sneakInterval;
+    function cleanup() {
+        // Clear all active timers to prevent memory leaks
+        if (chatTimer) clearTimeout(chatTimer);
+        if (moveTimer) clearInterval(moveTimer);
+        if (moveTimeout) clearTimeout(moveTimeout);
+        if (reconnectTimeout) clearTimeout(reconnectTimeout);
 
-  function cleanup() {
-    if (movementInterval) clearInterval(movementInterval);
-    if (reconnectTimer) clearTimeout(reconnectTimer);
-    if (afkInterval) clearInterval(afkInterval);
-    if (lookInterval) clearInterval(lookInterval);
-    if (sneakInterval) clearInterval(sneakInterval);
-    movementInterval = null;
-    reconnectTimer = null;
-    afkInterval = null;
-    lookInterval = null;
-    sneakInterval = null;
-  }
+        if (bot) {
+            // Remove all event listeners so old bot objects can be garbage collected
+            bot.removeAllListeners();
+            try {
+                bot.quit();
+            } catch (e) {
+                // Silent catch
+            }
+            bot = null;
+        }
+    }
 
-  function connect() {
-    cleanup();
+    function initBot() {
+        cleanup(); // Ensure total isolation from previous instances
 
-    bot = mineflayer.createBot({
-      host: host,
-      port: DEFAULT_PORT,
-      username: name,
-      version: '1.20.1',
-      hideErrors: true,
-      checkTimeoutInterval: 30000
-    });
+        bot = mineflayer.createBot({
+            host: config.host,
+            port: config.port,
+            username: username,
+            version: config.version
+        });
 
-    bot.once('spawn', () => {
-      startRandomMovement();
-      if (name === 'John') startAntiAFK();
+        bot.on('spawn', () => {
+            startMoving();
+            startChatting();
+        });
 
-      reconnectTimer = setTimeout(() => {
-        cleanup();
-        try { bot.quit(); } catch(e) {}
-        setTimeout(connect, 5000);
-      }, reconnectInterval);
-    });
+        bot.on('death', () => {
+            if (bot) bot.respawn();
+        });
 
-    bot.on('death', () => {
-      try { bot.respawn(); } catch(e) {}
-    });
+        bot.on('end', () => {
+            cleanup();
+            // Reconnect silently after 5 seconds
+            reconnectTimeout = setTimeout(initBot, 5000);
+        });
 
-    bot.on('health', () => {
-      try { if (bot.health <= 0) bot.respawn(); } catch(e) {}
-    });
+        bot.on('error', () => {
+            // Silently swallow errors to avoid console noise or crashes
+        });
+    }
 
-    bot.on('error', () => {
-      cleanup();
-      setTimeout(connect, 10000);
-    });
+    // Movement Logic
+    function startMoving() {
+        moveTimer = setInterval(() => {
+            if (!bot || !bot.entity) return;
+            const directions = ['forward', 'back', 'left', 'right'];
+            const randomDir = directions[Math.floor(Math.random() * directions.length)];
+            
+            bot.setControlState(randomDir, true);
+            
+            moveTimeout = setTimeout(() => {
+                if (bot && bot.entity) bot.setControlState(randomDir, false);
+            }, 1000);
+        }, Math.random() * 3000 + 2000);
+    }
 
-    bot.on('kicked', () => {
-      cleanup();
-      setTimeout(connect, 10000);
-    });
+    // Chat Logic
+    function startChatting() {
+        const scheduleNextChat = () => {
+            const minMs = chatIntervalMinMax.min * 60 * 1000;
+            const maxMs = chatIntervalMinMax.max * 60 * 1000;
+            const randomDelay = Math.random() * (maxMs - minMs) + minMs;
 
-    bot.on('end', () => {
-      cleanup();
-    });
-  }
+            chatTimer = setTimeout(() => {
+                if (bot && bot.entity) {
+                    const msgs = ['hi', 'goodbye'];
+                    bot.chat(msgs[Math.floor(Math.random() * msgs.length)]);
+                }
+                scheduleNextChat();
+            }, randomDelay);
+        };
+        scheduleNextChat();
+    }
 
-  function startRandomMovement() {
-    const controls = ['forward', 'back', 'left', 'right'];
+    // Disconnect Cycle Logic
+    cycleInterval = setInterval(() => {
+        initBot(); // Re-initializing handles cleanup and recreates the connection safely
+    }, dcIntervalMin * 60 * 1000);
 
-    movementInterval = setInterval(() => {
-      if (!bot || !bot.entity) return;
-
-      controls.forEach(c => bot.setControlState(c, false));
-      const randomDir = controls[Math.floor(Math.random() * controls.length)];
-      bot.setControlState(randomDir, true);
-
-      if (Math.random() < 0.3) {
-        bot.setControlState('jump', true);
-        setTimeout(() => {
-          try { bot.setControlState('jump', false); } catch(e) {}
-        }, 500);
-      }
-
-    }, 2000);
-  }
-
-  function startAntiAFK() {
-    afkInterval = setInterval(() => {
-      try { bot.swingArm(); } catch(e) {}
-    }, 60000);
-
-    lookInterval = setInterval(() => {
-      try {
-        bot.look(Math.random() * Math.PI * 2, 0, true);
-      } catch(e) {}
-    }, 600000);
-
-    sneakInterval = setInterval(() => {
-      try {
-        bot.setControlState('sneak', true);
-        setTimeout(() => {
-          try { bot.setControlState('sneak', false); } catch(e) {}
-        }, 2000);
-      } catch(e) {}
-    }, 120000);
-  }
-
-  connect();
+    initBot();
 }
 
-const ONE_HOUR = 60 * 60 * 1000;
-
-// Join CoolServerEG.aternos.me
-createBot('John', 'CoolServerEG.aternos.me', ONE_HOUR);
-setTimeout(() => createBot('Egypt', 'CoolServerEG.aternos.me', ONE_HOUR), 5000);
+// Start both bots silently with your rules
+createBot('j', 20, { min: 10, max: 20 });
+createBot('jf', 30, { min: 10, max: 20 });
