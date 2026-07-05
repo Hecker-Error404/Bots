@@ -3,7 +3,7 @@ const mineflayer = require('mineflayer');
 const config = {
     host: 'nigerfromnigeria.aternos.me', // Change to your server IP
     port: 16304,       // Change to your server port
-    version: 1.21.10     // e.g., '1.20.1'
+    version: '1.21.10'     // e.g., '1.20.1'
 };
 
 function createBot(username, dcIntervalMin, chatIntervalMinMax) {
